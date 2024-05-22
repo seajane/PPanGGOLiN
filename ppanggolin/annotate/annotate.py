@@ -157,7 +157,8 @@ def read_org_gbff(organism_name: str, gbff_file_path: Path, circular_contigs: Li
         locus_tag = ""
         obj_type = ""
         protein_id = ""
-        genetic_code = ""
+        # if there is no /transl_table field, we assume it's 11.
+        genetic_code = 11
         useful_info = False
         start = None
         stop = None
