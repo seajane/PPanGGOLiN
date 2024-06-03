@@ -446,11 +446,35 @@ def read_org_gbff(organism_name: str, gbff_file_path: Path, circular_contigs: Li
                 contig_counter.value += 1
             organism.add(contig)
             contig.length = contig_len
-        
-        for feature in features:
-            if feature['type'] == "source":
-                contig_to_metadata[contig] = {tag:value for tag, value in feature.items() if tag not in ['type', "location"] and isinstance(value, str)}
-                if "db_xref" in feature:
+        # start of the feature object.
+        dbxref = set()
+        gene_name = ""
+        product = ""
+        locus_tag = ""
+        obj_type = ""
+        protein_id = ""
+        # if there is no /transl_table field, we assume it's 11.
+        genetic_code = 11
+        useful_info = False
+        start = None
+        stop = None
+        strand = None
+        line = lines.pop()
+        while not line.startswith("ORIGIN"):
+            curr_type = line[5:21].strip()
+            if curr_type != "":
+                if useful_info:
+                    create_gene(organism, contig, gene_counter, rna_counter, locus_tag, dbxref, start, stop, strand,
+                                obj_type, contig.number_of_genes, gene_name, product, genetic_code, protein_id)
+                    if obj_type == "CDS":
+                        gene_counter += 1
+                    else:
+                        rna_counter += 1
+                useful_info = False
+                obj_type = curr_type
+                if obj_type in ['CDS', 'rRNA', 'tRNA']:
+                    dbxref = set()
+                    gene_name = ""
                     try:
                         db_xref_for_metadata = {f"db_xref_{database}":identifier for database_identifier in feature["db_xref"] for database, identifier in [database_identifier.split(':')]}
                         contig_to_metadata[contig].update(db_xref_for_metadata)
