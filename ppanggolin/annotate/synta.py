@@ -14,7 +14,7 @@ from typing import Dict, List, Union
 from pathlib import Path
 
 # install libraries
-from pyrodigal import GeneFinder, Sequence
+from prodigal import GeneFinder, Sequence
 
 # local libraries
 from ppanggolin.genome import Organism, Gene, RNA, Contig
