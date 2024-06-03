@@ -299,7 +299,7 @@ def dereplicate_rgp(rgps: Set[Union[Region, IdenticalRegions]],
     :return: A list of dereplicated RGPs (Region or IdenticalRegions objects). For RGPs with the same families,
              they will be grouped together in IdenticalRegions objects.
     """
-    logging.info(f'Dereplicating {len(rgps)} RGPs')
+    logging.getLogger("PPanGGOLiN").info(f'Dereplicating {len(rgps)} RGPs')
     families_to_rgps = defaultdict(list)
 
     for rgp in tqdm(rgps, total=len(rgps), unit="RGP", disable=disable_bar):
@@ -324,7 +324,7 @@ def dereplicate_rgp(rgps: Set[Union[Region, IdenticalRegions]],
             identical_region_count += 1
             dereplicated_rgps.append(identical_rgp)
 
-    logging.info(f'{len(dereplicated_rgps)} unique RGPs')
+    logging.getLogger("PPanGGOLiN").info(f'{len(dereplicated_rgps)} unique RGPs')
     return dereplicated_rgps
 
 
@@ -379,7 +379,7 @@ def cluster_rgp_on_grr(graph: nx.Graph, clustering_attribute: str = "grr"):
         nx.set_node_attributes(
             graph, {node: f"cluster_{i}" for node in cluster_nodes}, name=f"{clustering_attribute}_cluster")
 
-    logging.info(
+    logging.getLogger("PPanGGOLiN").info(
         f"Graph has {len(partitions)} clusters using {clustering_attribute}")
 
 
@@ -447,7 +447,7 @@ def cluster_rgp(pangenome, grr_cutoff: float, output: str, basename: str,
 
     if pangenome.status["metadata"]["RGPs"] == "inFile":
         need_metadata = True
-        logging.info('Some RGPs metadata have been found in pangenome, they will be included in rgp graph.')
+        logging.getLogger("PPanGGOLiN").info('Some RGPs metadata have been found in pangenome, they will be included in rgp graph.')
     else:
         need_metadata = False
 
@@ -468,7 +468,7 @@ def cluster_rgp(pangenome, grr_cutoff: float, output: str, basename: str,
         ignored_rgp_count = pangenome.number_of_rgp - len(valid_rgps)
         total_rgp_count = pangenome.number_of_rgp
 
-        logging.info(
+        logging.getLogger("PPanGGOLiN").info(
             f'Ignoring {ignored_rgp_count}/{total_rgp_count} ({100 * ignored_rgp_count / total_rgp_count:.2f}%) '
             'RGPs that are located at a contig border and are likely incomplete.')
 
@@ -496,17 +496,30 @@ def cluster_rgp(pangenome, grr_cutoff: float, output: str, basename: str,
 
     pairs_count = len(rgp_pairs)
 
-    logging.info(
+    logging.getLogger("PPanGGOLiN").info(
         f'Computing GRR metric for {pairs_count:,} pairs of RGP.')
 
     pairs_of_rgps_metrics = []
 
-    for rgp_a, rgp_b in rgp_pairs:
+    with tqdm(total=pairs_count, unit="Pair", disable=disable_bar) as progress_bar:
+        bar_iteration = round(pairs_count / 100000)
+        if bar_iteration < 1:
+            bar_iteration = 1
 
-        pair_metrics = compute_rgp_metric(rgp_a, rgp_b, grr_cutoff, grr_metric)
+        for i, (rgp_a, rgp_b) in enumerate(rgp_pairs):
 
-        if pair_metrics:
-            pairs_of_rgps_metrics.append(pair_metrics)
+            pair_metrics = compute_rgp_metric(rgp_a, rgp_b, grr_cutoff, grr_metric)
+
+            if pair_metrics:
+                pairs_of_rgps_metrics.append(pair_metrics)
+
+            # Update the progress bar manually every 10k iterations
+            if i % bar_iteration == 0:
+                progress_bar.update(bar_iteration)
+
+    logging.getLogger("PPanGGOLiN").info(f'Finished GRR metric computation for {pairs_count:,} pairs of RGP.')
+    
+    logging.getLogger("PPanGGOLiN").info('Adding edges to RGP graph with computed metrics.')
 
     grr_graph.add_edges_from(pairs_of_rgps_metrics)
 
@@ -517,7 +530,7 @@ def cluster_rgp(pangenome, grr_cutoff: float, output: str, basename: str,
         rgp_objects_in_graph += add_edges_to_identical_rgps(grr_graph, identical_rgps_objects)
 
     # cluster rgp based on grr value
-    logging.info(
+    logging.getLogger("PPanGGOLiN").info(
         f"Louvain_communities clustering of RGP  based on {grr_metric} on {grr_graph}.")
 
     cluster_rgp_on_grr(grr_graph, grr_metric)
@@ -526,13 +539,13 @@ def cluster_rgp(pangenome, grr_cutoff: float, output: str, basename: str,
                    for spot in pangenome.spots for region in spot.regions}
 
     if not unmerge_identical_rgps:
-        logging.info("Add info on identical RGPs merged in the graph")
+        logging.getLogger("PPanGGOLiN").info("Add info on identical RGPs merged in the graph")
         add_info_to_identical_rgps(grr_graph, identical_rgps_objects, rgp_to_spot)
 
     rgps_in_graph = rgp_objects_in_graph if unmerge_identical_rgps else dereplicated_rgps
 
     # add some attribute to the graph nodes.
-    logging.info("Add RGP information to the graph")
+    logging.getLogger("PPanGGOLiN").info("Add RGP information to the graph")
     add_info_to_rgp_nodes(grr_graph, rgp_objects_in_graph, rgp_to_spot)
 
     if need_metadata:
@@ -541,16 +554,16 @@ def cluster_rgp(pangenome, grr_cutoff: float, output: str, basename: str,
     if "gexf" in graph_formats:
         # writting graph in gexf format
         graph_file_name = os.path.join(output, f"{basename}.gexf")
-        logging.info(f"Writting graph in gexf format in {graph_file_name}.")
+        logging.getLogger("PPanGGOLiN").info(f"Writting graph in gexf format in {graph_file_name}.")
         nx.readwrite.gexf.write_gexf(grr_graph, graph_file_name)
 
     if "graphml" in graph_formats:
         graph_file_name = os.path.join(output, f"{basename}.graphml")
-        logging.info(f"Writting graph in graphml format in {graph_file_name}.")
+        logging.getLogger("PPanGGOLiN").info(f"Writting graph in graphml format in {graph_file_name}.")
         nx.readwrite.graphml.write_graphml(grr_graph, graph_file_name)
 
     outfile = os.path.join(output, f"{basename}.tsv")
-    logging.info(f"Writting rgp clusters in tsv format in {outfile}")
+    logging.getLogger("PPanGGOLiN").info(f"Writting rgp clusters in tsv format in {outfile}")
 
     write_rgp_cluster_table(
         outfile, grr_graph, rgps_in_graph, grr_metric, rgp_to_spot)
